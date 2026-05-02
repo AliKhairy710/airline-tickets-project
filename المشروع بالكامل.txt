@@ -32,8 +32,8 @@ struct booking {
     bool isActive = false;
 };
 
-// --- دوال حفظ البيانات ---
-void save_to_files(Plane planes[], int pCount, Flight flights[], int fCount) {
+// --- دالة حفظ البيانات (تستدعى عند الخروج) ---
+void save_to_files(Plane planes[], int pCount, Flight flights[], int fCount, booking bookings[], int bCount) {
     ofstream pFile("Planes.txt");
     for (int i = 0; i < pCount; i++) {
         if (planes[i].isPlaneActive)
@@ -48,33 +48,31 @@ void save_to_files(Plane planes[], int pCount, Flight flights[], int fCount) {
             << flights[i].takeOffTime << " " << flights[i].landingTime << " " << flights[i].assignedPlane.planeID << endl;
     }
     fFile.close();
-}
 
-// دالة جديدة لحفظ الحجوزات في ملف منفصل
-void save_bookings_to_file(booking bList[], int bCount) {
-    ofstream bFile("Bookings.txt");
+    // حفظ ملف الحجوزات (Booking)
+    ofstream bFile("booking.txt");
     for (int i = 0; i < bCount; i++) {
-        if (bList[i].isActive) {
-            bFile << bList[i].passengerName << " " << bList[i].flightID << " " << bList[i].row << " " << bList[i].col << endl;
+        if (bookings[i].isActive) {
+            bFile << bookings[i].passengerName << " " << bookings[i].flightID << " " << bookings[i].row << " " << bookings[i].col << endl;
         }
     }
     bFile.close();
 }
 
-// --- دوال تحميل البيانات ---
-void load_from_files(Plane planes[], int& pCount, Flight flights[], int& fCount, booking bList[], int& bCount) {
-    // تحميل الطائرات
+// --- دالة تحميل البيانات (تستدعى عند البداية) ---
+void load_from_files(Plane planes[], int& pCount, Flight flights[], int& fCount, booking bookings[], int& bCount) {
     ifstream pFile("Planes.txt");
     if (pFile.is_open()) {
         pCount = 0;
         while (pFile >> planes[pCount].planeID >> planes[pCount].maxRows >> planes[pCount].seatLayout >> planes[pCount].modelName) {
             planes[pCount].isPlaneActive = true;
+            // تصفير المقاعد عند التحميل لضمان نظافة الداتا
+            for (int r = 0; r < 10; r++) for (int c = 0; c < 10; c++) planes[pCount].seats[r][c] = false;
             pCount++;
         }
         pFile.close();
     }
 
-    // تحميل الرحلات
     ifstream fFile("Flights.txt");
     if (fFile.is_open()) {
         fCount = 0;
@@ -92,16 +90,17 @@ void load_from_files(Plane planes[], int& pCount, Flight flights[], int& fCount,
         fFile.close();
     }
 
-    // تحميل الحجوزات وتحديث حالة الكراسي في الرحلات
-    ifstream bFile("Bookings.txt");
+    // تحميل الحجوزات وتحديث حالة المقاعد في الطائرات
+    ifstream bFile("booking.txt");
     if (bFile.is_open()) {
         bCount = 0;
-        while (bFile >> bList[bCount].passengerName >> bList[bCount].flightID >> bList[bCount].row >> bList[bCount].col) {
-            bList[bCount].isActive = true;
-            // تحديث حالة الكرسي في الرحلة المناسبة
-            for (int j = 0; j < fCount; j++) {
-                if (flights[j].flightID == bList[bCount].flightID) {
-                    flights[j].assignedPlane.seats[bList[bCount].row][bList[bCount].col] = true;
+        while (bFile >> bookings[bCount].passengerName >> bookings[bCount].flightID >> bookings[bCount].row >> bookings[bCount].col) {
+            bookings[bCount].isActive = true;
+            // تحديث حالة المقعد في الرحلة المناسبة
+            for (int i = 0; i < fCount; i++) {
+                if (flights[i].isActive && flights[i].flightID == bookings[bCount].flightID) {
+                    flights[i].assignedPlane.seats[bookings[bCount].row][bookings[bCount].col] = true;
+                    break;
                 }
             }
             bCount++;
@@ -220,8 +219,6 @@ void add_booking(booking bList[], int& bCount, Flight fList[], int fSize, string
             bList[bCount] = { pName, fID, r, c, true };
             bCount++;
             cout << "\n [SUCCESS] Booked Row " << r << " Col " << c << " for " << pName;
-            // حفظ فوري للحجز
-            save_bookings_to_file(bList, bCount);
             return;
         }
     }
@@ -239,7 +236,6 @@ void cancel_booking(booking bList[], int bCount, Flight fList[], int fSize, stri
             }
             bList[i].isActive = false;
             cout << "\n [CANCELLED] Booking for " << pName << " cleared.";
-            save_bookings_to_file(bList, bCount); // تحديث ملف الحجوزات
             return;
         }
     }
@@ -254,7 +250,7 @@ int main() {
     int planesCount = 0;
     int flightsCount = 0;
 
-    // تحميل كل البيانات (طيارات، رحلات، حجوزات) عند البداية
+    // تحميل البيانات من الملفات عند التشغيل بما فيها ملف الحجز
     load_from_files(allPlanes, planesCount, allFlights, flightsCount, allBookings, totalBookings);
 
     int systemMode;
@@ -272,13 +268,15 @@ int main() {
         validate_input();
 
         if (systemMode == 0) {
-            save_to_files(allPlanes, planesCount, allFlights, flightsCount);
-            save_bookings_to_file(allBookings, totalBookings);
+            // حفظ كل البيانات عند الخروج
+            save_to_files(allPlanes, planesCount, allFlights, flightsCount, allBookings, totalBookings);
             break;
         }
 
         if (systemMode == 1) {
-            if (!adminLogin()) continue;
+            if (!adminLogin()) {
+                continue;
+            }
 
             char stayInAdmin = 'y';
             while (stayInAdmin == 'y' || stayInAdmin == 'Y') {
@@ -291,11 +289,32 @@ int main() {
                 cout << "  5. Add New Plane" << endl;
                 cout << "  6. Edit Flight Info" << endl;
                 cout << "  7. Delete Flight" << endl;
+                cout << "  8. Edit Plane Info" << endl;
+                cout << "  9. Delete Plane" << endl;
                 cout << "  Enter Choice: "; cin >> adminTask;
                 validate_input();
 
                 if (adminTask == 1) {
                     for (int i = 0; i < flightsCount; i++) display_flight_details(allFlights[i]);
+                }
+                else if (adminTask == 2) {
+                    cout << "\n  --- Available Flights List ---" << endl;
+                    for (int i = 0; i < flightsCount; i++) {
+                        if (allFlights[i].isActive)
+                            cout << "  [ID: " << allFlights[i].flightID << "] " << allFlights[i].sourceCity << " to " << allFlights[i].destinationCity << endl;
+                    }
+                    string inputID; cout << "\n  Enter Target ID to view details: "; cin >> inputID;
+                    admin_find_flight(allFlights, flightsCount, inputID);
+                }
+                else if (adminTask == 3) {
+                    cout << "\n  --- Available Planes List ---" << endl;
+                    for (int i = 0; i < planesCount; i++) {
+                        if (allPlanes[i].isPlaneActive)
+                            cout << "  [Plane ID: " << allPlanes[i].planeID << "] Model: " << allPlanes[i].modelName << endl;
+                    }
+                    int inputID; cout << "\n  Enter Target ID to view details: "; cin >> inputID;
+                    validate_input();
+                    admin_find_plane(allPlanes, planesCount, inputID);
                 }
                 else if (adminTask == 4) {
                     string id, from, to, s, e; int pIdx;
@@ -307,31 +326,89 @@ int main() {
                     if (pIdx >= 0 && pIdx < planesCount) {
                         add_flight_data(allFlights[flightsCount], id, from, to, s, e, allPlanes[pIdx]);
                         flightsCount++;
-                        save_to_files(allPlanes, planesCount, allFlights, flightsCount); // حفظ فوري
                         cout << "[SUCCESS] Flight Added!";
                     }
+                    else cout << "[!] Error: Plane index out of range.";
                 }
                 else if (adminTask == 5) {
                     string mod, lay; int id, rows;
                     cout << "Model: "; cin.ignore(); getline(cin, mod);
                     cout << "Layout: "; getline(cin, lay);
                     cout << "Plane ID: "; cin >> id; cout << "Rows: "; cin >> rows;
-                    validate_input();
-                    add_plane_data(allPlanes[planesCount], mod, lay, id, rows);
+                    validate_input();add_plane_data(allPlanes[planesCount], mod, lay, id, rows);
                     planesCount++;
-                    save_to_files(allPlanes, planesCount, allFlights, flightsCount); // حفظ فوري
                     cout << "[SUCCESS] Plane Added!";
                 }
-                // ... بقية مهام الأدمن (حذف/تعديل) تستدعي save_to_files بعدها بنفس الطريقة
+                else if (adminTask == 6) {
+                    string targetID; cout << "Enter Flight ID to edit: "; cin >> targetID;
+                    bool found = false;
+                    for (int i = 0; i < flightsCount; i++) {
+                        if (allFlights[i].isActive && allFlights[i].flightID == targetID) {
+                            cout << "New Origin: "; cin >> allFlights[i].sourceCity;
+                            cout << "New Destination: "; cin >> allFlights[i].destinationCity;
+                            cout << "New Departure Time: "; cin >> allFlights[i].takeOffTime;
+                            cout << "New Arrival Time: "; cin >> allFlights[i].landingTime;
+                            cout << "[SUCCESS] Flight Info Updated!"; found = true; break;
+                        }
+                    }
+                    if (!found) cout << "[!] Error: Flight not found.";
+                }
+                else if (adminTask == 7) {
+                    string targetID; cout << "Enter Flight ID to Delete: "; cin >> targetID;
+                    bool found = false;
+                    for (int i = 0; i < flightsCount; i++) {
+                        if (allFlights[i].flightID == targetID) {
+                            allFlights[i].isActive = false;
+                            cout << "[DELETED] Flight " << targetID << " removed."; found = true; break;
+                        }
+                    }
+                    if (!found) cout << "[!] Error: Flight not found.";
+                }
+                else if (adminTask == 8) {
+                    int targetID; cout << "Enter Plane ID to edit: "; cin >> targetID;
+                    validate_input();
+                    bool found = false;
+                    for (int i = 0; i < planesCount; i++) {
+                        if (allPlanes[i].isPlaneActive && allPlanes[i].planeID == targetID) {
+                            cout << "New Model Name: "; cin.ignore(); getline(cin, allPlanes[i].modelName);
+                            cout << "New Layout: "; getline(cin, allPlanes[i].seatLayout);
+                            cout << "[SUCCESS] Plane Info Updated!"; found = true; break;
+                        }
+                    }
+                    if (!found) cout << "[!] Error: Plane not found.";
+                }
+                else if (adminTask == 9) {
+                    int targetID; cout << "Enter Plane ID to Delete: "; cin >> targetID;
+                    validate_input();
+                    bool found = false;
+                    for (int i = 0; i < planesCount; i++) {
+                        if (allPlanes[i].planeID == targetID) {
+                            allPlanes[i].isPlaneActive = false;
+                            cout << "[DELETED] Plane " << targetID << " removed."; found = true; break;
+                        }
+                    }
+                    if (!found) cout << "[!] Error: Plane not found.";
+                }
+                else {
+                    cout << "\n [!] Invalid Selection in Admin Panel.";
+                }
 
                 cout << "\n  >> Do you want to perform another ADMIN task? (y/n): "; cin >> stayInAdmin;
             }
         }
         else if (systemMode == 2) {
-            string userFrom, userTo;
-            cout << "\n  Origin City      : "; cin >> userFrom;
-            cout << "  Destination City : "; cin >> userTo;
-            user_find_route(allFlights, flightsCount, userFrom, userTo);
+            char stayInUser = 'y';
+            while (stayInUser == 'y' || stayInUser == 'Y') {
+                cout << "\n  === PASSENGER SEARCH PORTAL ===" << endl;
+                for (int i = 0; i < flightsCount; i++) {
+                    if (allFlights[i].isActive)
+                        cout << "  - " << allFlights[i].sourceCity << " to " << allFlights[i].destinationCity << " (ID: " << allFlights[i].flightID << ")" << endl;
+                }
+                string userFrom, userTo;
+                cout << "\n  Origin City      : "; cin >> userFrom;
+                cout << "  Destination City : "; cin >> userTo;user_find_route(allFlights, flightsCount, userFrom, userTo);
+                cout << "\n  >> Search again? (y/n): "; cin >> stayInUser;
+            }
         }
         else if (systemMode == 3) {
             string pName, fID; int r, c;
@@ -344,6 +421,9 @@ int main() {
             string pName; cout << "\n  Enter Passenger Name: "; cin >> pName;
             cancel_booking(allBookings, totalBookings, allFlights, flightsCount, pName);
         }
+        else {
+            cout << "\n [!] Invalid Selection! Please choose from 0 to 4." << endl;
+        }
     }
     return 0;
-}
+} // الحمدلله رب العالمين
