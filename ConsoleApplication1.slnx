@@ -1,7 +1,352 @@
-<Solution>
-  <Configurations>
-    <Platform Name="x64" />
-    <Platform Name="x86" />
-  </Configurations>
-  <Project Path="ConsoleApplication1/ConsoleApplication1.vcxproj" Id="d6691ec4-4b49-4aed-abd5-e1ef82ce028a" />
-</Solution>
+#include <iostream>
+#include <string>
+#include <limits> 
+
+using namespace std;
+
+struct Plane {
+    string modelName;
+    string seatLayout;
+    int planeID;
+    int maxRows;
+    bool seats[10][10] = { false };
+    bool isPlaneActive = true;
+};
+
+struct Flight {
+    string flightID;
+    string sourceCity;
+    string destinationCity;
+    string takeOffTime;
+    string landingTime;
+    Plane assignedPlane;
+    bool isActive = false;
+};
+
+struct booking {
+    string passengerName;
+    string flightID;
+    int row, col;
+    bool isActive = false;
+};
+
+
+void validate_input() {
+    if (cin.fail()) {
+        cin.clear();
+        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+        cout << "\n [!] Error: Invalid Input. Please enter a numeric value." << endl;
+    }
+}
+
+
+void display_plane_details(Plane currentPlane) {
+    cout << "      > Plane Model : " << currentPlane.modelName << endl;
+    cout << "      > Plane ID    : " << currentPlane.planeID << endl;
+    cout << "      > Seat Config : " << currentPlane.seatLayout << " (" << currentPlane.maxRows << " Rows x 10 Columns)" << endl;
+}
+
+void display_flight_details(Flight currentFlight) {
+    if (!currentFlight.isActive) return;
+    cout << "\n  +---------------------------------------------------+" << endl;
+    cout << "    FLIGHT: " << currentFlight.flightID << " | " << currentFlight.sourceCity << " >>> " << currentFlight.destinationCity << endl;
+    cout << "  +---------------------------------------------------+" << endl;
+    cout << "    Departure : " << currentFlight.takeOffTime << endl;
+    cout << "    Arrival   : " << currentFlight.landingTime << endl;
+    display_plane_details(currentFlight.assignedPlane);
+    cout << "  +---------------------------------------------------+" << endl;
+}
+
+
+void add_plane_data(Plane& planeObj, string model, string layout, int id, int rows) {
+    planeObj.modelName = model;
+    planeObj.seatLayout = layout;
+    planeObj.planeID = id;
+    planeObj.maxRows = rows;
+    planeObj.isPlaneActive = true;
+}
+
+void add_flight_data(Flight& flightObj, string code, string from, string to, string start, string end, Plane planeInfo) {
+    flightObj.flightID = code;
+    flightObj.sourceCity = from;
+    flightObj.destinationCity = to;
+    flightObj.takeOffTime = start;
+    flightObj.landingTime = end;
+    flightObj.assignedPlane = planeInfo;
+    flightObj.isActive = true;
+}
+
+
+void admin_find_flight(Flight flightsArray[], int totalSize, string searchID) {
+    bool isFound = false;
+    for (int i = 0; i < totalSize; i++) {
+        if (flightsArray[i].isActive && flightsArray[i].flightID == searchID) {
+            display_flight_details(flightsArray[i]);
+            isFound = true;
+        }
+    }
+    if (!isFound) cout << "\n  [!] Error: Flight ID not found." << endl;
+}
+
+void admin_find_plane(Plane planesArray[], int totalSize, int searchID) {
+    bool isFound = false;
+    for (int i = 0; i < totalSize; i++) {
+        if (planesArray[i].isPlaneActive && planesArray[i].planeID == searchID) {
+            cout << "\n  --- Plane Database Result ---" << endl;
+            display_plane_details(planesArray[i]);
+            isFound = true;
+        }
+    }
+    if (!isFound) cout << "\n  [!] Error: Plane ID not found." << endl;
+}
+
+void user_find_route(Flight flightsArray[], int totalSize, string from, string to) {
+    bool isFound = false;
+    for (int i = 0; i < totalSize; i++) {
+        if (flightsArray[i].isActive && flightsArray[i].sourceCity == from && flightsArray[i].destinationCity == to) {
+            display_flight_details(flightsArray[i]);
+            isFound = true;
+        }
+    }
+    if (!isFound) cout << "\n  [!] No flights matching your search." << endl;
+}
+
+void add_booking(booking bList[], int& bCount, Flight fList[], int fSize, string pName, string fID, int r, int c) {
+    
+    if (r < 0 || r > 9 || c < 0 || c > 9) {
+        cout << "\n [!] Error: Invalid Seat Coordinates (Use 0-9).";
+        return;
+    }
+    for (int i = 0; i < fSize; i++) {
+        if (fList[i].isActive && fList[i].flightID == fID) {
+            if (fList[i].assignedPlane.seats[r][c]) {
+                cout << "\n [!] Error: Seat already taken!"; return;
+            }
+            fList[i].assignedPlane.seats[r][c] = true;
+            bList[bCount] = { pName, fID, r, c, true };
+            bCount++;
+            cout << "\n [SUCCESS] Booked Row " << r << " Col " << c << " for " << pName;
+            return;
+        }
+    }
+    cout << "\n [!] Flight ID not found.";
+}
+
+void cancel_booking(booking bList[], int bCount, Flight fList[], int fSize, string pName) {
+    for (int i = 0; i < bCount; i++) {
+        if (bList[i].passengerName == pName && bList[i].isActive) {
+            for (int j = 0; j < fSize; j++) {
+                if (fList[j].isActive && fList[j].flightID == bList[i].flightID) {
+                    fList[j].assignedPlane.seats[bList[i].row][bList[i].col] = false;
+                    break;
+                }
+            }
+            bList[i].isActive = false;
+            cout << "\n [CANCELLED] Booking for " << pName << " cleared.";
+            return;
+        }
+    }
+    cout << "\n [!] No active booking found.";
+}
+
+
+int main() {
+    Plane allPlanes[100];
+    Flight allFlights[100];
+    booking allBookings[100];
+    int totalBookings = 0;
+    int planesCount = 10;
+    int flightsCount = 20;
+
+    
+    add_plane_data(allPlanes[0], "Boeing 747", "3-4-3 Layout", 101, 10);
+    add_plane_data(allPlanes[1], "Airbus A320", "3-4-3 Layout", 102, 10);
+    add_plane_data(allPlanes[2], "Boeing 777", "3-4-3 Layout", 103, 10);
+    add_plane_data(allPlanes[3], "Airbus A380", "3-4-3 Layout", 104, 10);
+    add_plane_data(allPlanes[4], "Embraer E190", "3-4-3 Layout", 105, 10);
+    add_plane_data(allPlanes[5], "Boeing 737", "3-4-3 Layout", 106, 10);
+    add_plane_data(allPlanes[6], "Airbus A350", "3-4-3 Layout", 107, 10);
+    add_plane_data(allPlanes[7], "Bombardier CRJ", "3-4-3 Layout", 108, 10);
+    add_plane_data(allPlanes[8], "Boeing 787", "3-4-3 Layout", 109, 10);
+    add_plane_data(allPlanes[9], "Airbus A330", "3-4-3 Layout", 110, 10);
+
+    add_flight_data(allFlights[0], "CAI-101", "Cairo", "Dubai", "02:00", "06:00", allPlanes[0]);
+    add_flight_data(allFlights[1], "CAI-102", "Cairo", "London", "08:00", "13:00", allPlanes[1]);
+    add_flight_data(allFlights[2], "DXB-201", "Dubai", "Paris", "10:00", "15:00", allPlanes[2]);
+    add_flight_data(allFlights[3], "LHR-301", "London", "New York", "14:00", "18:00", allPlanes[3]);
+    add_flight_data(allFlights[4], "JFK-401", "New York", "Tokyo", "20:00", "10:00", allPlanes[0]);
+    add_flight_data(allFlights[5], "RUH-501", "Riyadh", "Cairo", "01:00", "03:30", allPlanes[5]);
+    add_flight_data(allFlights[6], "JED-601", "Jeddah", "Istanbul", "05:00", "09:00", allPlanes[6]);
+    add_flight_data(allFlights[7], "IST-701", "Istanbul", "Berlin", "11:00", "14:00", allPlanes[1]);
+    add_flight_data(allFlights[8], "BER-801", "Berlin", "Madrid", "16:00", "19:00", allPlanes[4]);
+    add_flight_data(allFlights[9], "MAD-901", "Madrid", "Rome", "21:00", "23:30", allPlanes[7]);
+    add_flight_data(allFlights[10], "ROM-111", "Rome", "Cairo", "04:00", "07:00", allPlanes[9]);
+    add_flight_data(allFlights[11], "CAI-222", "Cairo", "Riyadh", "09:00", "11:30", allPlanes[5]);
+    add_flight_data(allFlights[12], "DXB-333", "Dubai", "Singapore", "13:00", "21:00", allPlanes[2]);
+    add_flight_data(allFlights[13], "SIN-444", "Singapore", "Sydney", "23:00", "08:00", allPlanes[8]);
+    add_flight_data(allFlights[14], "SYD-555", "Sydney", "Auckland", "10:00", "13:00", allPlanes[4]);
+    add_flight_data(allFlights[15], "PAR-666", "Paris", "Cairo", "15:00", "20:00", allPlanes[6]);
+    add_flight_data(allFlights[16], "CAI-777", "Cairo", "Beirut", "18:00", "19:30", allPlanes[1]);
+    add_flight_data(allFlights[17], "BEY-888", "Beirut", "Amman", "21:00", "22:00", allPlanes[7]);
+    add_flight_data(allFlights[18], "AMM-999", "Amman", "Doha", "23:30", "02:00", allPlanes[5]);
+    add_flight_data(allFlights[19], "DOH-000", "Doha", "Cairo", "04:00", "07:00", allPlanes[3]);
+
+    int systemMode;
+    while (true) {
+        cout << "\n\t****************************************" << endl;
+        cout << "\t*      AIRLINE RESERVATION SYSTEM      *" << endl;
+        cout << "\t****************************************" << endl;
+        cout << "\t [1] ADMIN DASHBOARD" << endl;
+        cout << "\t [2] USER SEARCH" << endl;
+        cout << "\t [3] BOOK A TICKET" << endl;
+        cout << "\t [4] CANCEL BOOKING" << endl;
+        cout << "\t [0] EXIT SYSTEM" << endl;
+        cout << "\t****************************************" << endl;
+        cout << "\t Selection: "; cin >> systemMode;
+        validate_input(); 
+
+        if (systemMode == 0) break;
+
+        if (systemMode == 1) {
+            char stayInAdmin = 'y';
+            while (stayInAdmin == 'y' || stayInAdmin == 'Y') {
+                int adminTask = -1;
+                cout << "\n  === ADMIN CONTROL PANEL ===" << endl;
+                cout << "  1. View All Flight Schedules" << endl;
+                cout << "  2. Search by Flight ID" << endl;
+                cout << "  3. Search by Plane Code" << endl;
+                cout << "  4. Add New Flight" << endl;
+                cout << "  5. Add New Plane" << endl;
+                cout << "  6. Edit Flight Info" << endl;
+                cout << "  7. Delete Flight" << endl;
+                cout << "  8. Edit Plane Info" << endl;
+                cout << "  9. Delete Plane" << endl;
+                cout << "  Enter Choice: "; cin >> adminTask;
+                validate_input();
+
+                if (adminTask == 1) {
+                    for (int i = 0; i < flightsCount; i++) display_flight_details(allFlights[i]);
+                }
+                else if (adminTask == 2) {
+                    string inputID; cout << "\n  Target ID: "; cin >> inputID;
+                    admin_find_flight(allFlights, flightsCount, inputID);
+                }
+                else if (adminTask == 3) {
+                    int inputID; cout << "\n  Target ID: "; cin >> inputID;
+                    validate_input();
+                    admin_find_plane(allPlanes, planesCount, inputID);
+                }
+                else if (adminTask == 4) {
+                    string id, from, to, s, e; int pIdx;
+                    cout << "New Flight ID: "; cin >> id;
+                    cout << "From: "; cin >> from; cout << "To: "; cin >> to;
+                    cout << "Departure: "; cin >> s; cout << "Arrival: "; cin >> e;
+                    cout << "Plane Index (0-" << planesCount - 1 << "): "; cin >> pIdx;
+                    validate_input();
+                    if (pIdx >= 0 && pIdx < planesCount) {
+                        add_flight_data(allFlights[flightsCount], id, from, to, s, e, allPlanes[pIdx]);
+                        flightsCount++;
+                        cout << "[SUCCESS] Flight Added!";
+                    }
+                    else cout << "[!] Error: Plane index out of range.";
+                }
+                else if (adminTask == 5) {
+                    string mod, lay; int id, rows;
+                    cout << "Model: "; cin.ignore(); getline(cin, mod);
+                    cout << "Layout: "; getline(cin, lay);
+                    cout << "Plane ID: "; cin >> id; cout << "Rows: "; cin >> rows;
+                    validate_input();
+                    add_plane_data(allPlanes[planesCount], mod, lay, id, rows);
+                    planesCount++;
+                    cout << "[SUCCESS] Plane Added!";
+                }
+                else if (adminTask == 6) {
+                    string targetID; cout << "Enter Flight ID to edit: "; cin >> targetID;
+                    bool found = false;
+                    for (int i = 0; i < flightsCount; i++) {
+                        if (allFlights[i].isActive && allFlights[i].flightID == targetID) {
+                            cout << "New Origin: "; cin >> allFlights[i].sourceCity;
+                            cout << "New Destination: "; cin >> allFlights[i].destinationCity;
+                            cout << "New Departure Time: "; cin >> allFlights[i].takeOffTime;
+                            cout << "New Arrival Time: "; cin >> allFlights[i].landingTime;
+                            cout << "[SUCCESS] Flight Info Updated!"; found = true; break;
+                        }
+                    }
+                    if (!found) cout << "[!] Error: Flight not found.";
+                }
+                else if (adminTask == 7) {
+                    string targetID; cout << "Enter Flight ID to Delete: "; cin >> targetID;
+                    bool found = false;
+                    for (int i = 0; i < flightsCount; i++) {
+                        if (allFlights[i].flightID == targetID) {
+                            allFlights[i].isActive = false;
+                            cout << "[DELETED] Flight " << targetID << " removed."; found = true; break;
+                        }
+                    }
+                    if (!found) cout << "[!] Error: Flight not found.";
+                }
+                else if (adminTask == 8) {
+                    int targetID; cout << "Enter Plane ID to edit: "; cin >> targetID;
+                    validate_input();
+                    bool found = false;
+                    for (int i = 0; i < planesCount; i++) {
+                        if (allPlanes[i].isPlaneActive && allPlanes[i].planeID == targetID) {
+                            cout << "New Model Name: "; cin.ignore(); getline(cin, allPlanes[i].modelName);
+                            cout << "New Layout: "; getline(cin, allPlanes[i].seatLayout);
+                            cout << "[SUCCESS] Plane Info Updated!"; found = true; break;
+                        }
+                    }
+                    if (!found) cout << "[!] Error: Plane not found.";
+                }
+                else if (adminTask == 9) {
+                    int targetID; cout << "Enter Plane ID to Delete: "; cin >> targetID;
+                    validate_input();
+                    bool found = false;
+                    for (int i = 0; i < planesCount; i++) {
+                        if (allPlanes[i].planeID == targetID) {
+                            allPlanes[i].isPlaneActive = false;
+                            cout << "[DELETED] Plane " << targetID << " removed."; found = true; break;
+                        }
+                    }
+                    if (!found) cout << "[!] Error: Plane not found.";
+                }
+                else {
+                    cout << "\n [!] Invalid Selection in Admin Panel.";
+                }
+
+                cout << "\n  >> Do you want to perform another ADMIN task? (y/n): "; cin >> stayInAdmin;
+            }
+        }
+        else if (systemMode == 2) {
+            char stayInUser = 'y';
+            while (stayInUser == 'y' || stayInUser == 'Y') {
+                cout << "\n  === PASSENGER SEARCH PORTAL ===" << endl;
+                for (int i = 0; i < flightsCount; i++) {
+                    if (allFlights[i].isActive)
+                        cout << "  - " << allFlights[i].sourceCity << " to " << allFlights[i].destinationCity << " (ID: " << allFlights[i].flightID << ")" << endl;
+                }
+                string userFrom, userTo;
+                cout << "\n  Origin City      : "; cin >> userFrom;
+                cout << "  Destination City : "; cin >> userTo;
+                user_find_route(allFlights, flightsCount, userFrom, userTo);
+                cout << "\n  >> Search again? (y/n): "; cin >> stayInUser;
+            }
+        }
+        else if (systemMode == 3) {
+            string pName, fID; int r, c;
+            cout << "\n  Name: "; cin >> pName; cout << "  Flight ID: "; cin >> fID;
+            cout << "  Row (0-9): "; cin >> r; cout << "  Col (0-9): "; cin >> c;
+            validate_input();
+            add_booking(allBookings, totalBookings, allFlights, flightsCount, pName, fID, r, c);
+        }
+        else if (systemMode == 4) {
+            string pName; cout << "\n  Enter Passenger Name: "; cin >> pName;
+            cancel_booking(allBookings, totalBookings, allFlights, flightsCount, pName);
+        }
+        else {
+            cout << "\n [!] Invalid Selection! Please choose from 0 to 4." << endl;
+        }
+    }
+    return 0;
+} 
+
